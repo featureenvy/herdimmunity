@@ -8,7 +8,8 @@
                  [om "0.5.3"]]
 
   :plugins [[lein-cljsbuild "1.0.2"]
-            [lein-ring "0.8.10"]]
+            [lein-ring "0.8.10"]
+            [com.cemerick/austin "0.1.3"]]
 
   :ring {:handler herdimmunity.server/app
          :auto-reload? true
