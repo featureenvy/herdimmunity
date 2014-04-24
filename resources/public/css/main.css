@@ -3,5 +3,17 @@
   border-size: 1px;
   border-color: #000;
   width: 20px;
-  height: 20px;
+  height: 28px;
+}
+
+.main-board .dead {
+  background-color: red;
+}
+
+.main-board .alive {
+  background-color: green;
+}
+
+.main-board .empty {
+  background-color: white;
 }

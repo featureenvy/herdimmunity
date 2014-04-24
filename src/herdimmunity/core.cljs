@@ -7,9 +7,17 @@
 
 (def app-state (atom {:board game/board}))
 
+(defn alive? [type]
+  (if (= "X" type) "alive"))
+
+(defn dead? [type]
+  (if (= "O" type) "dead"))
+
 (defn print-row
   [row]
-  (map (fn [text] (dom/td nil text)) row))
+  (let [type-switcher (fn [type]
+                        (or (alive? type) (dead? type) "empty"))]
+    (map (fn [text] (dom/td #js {:className (type-switcher text)} nil)) row)))
 
 (defn print-board
   [board]
