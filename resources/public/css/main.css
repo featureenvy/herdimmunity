@@ -1,0 +1,7 @@
+.main-board > tbody > tr > td {
+  border-style: solid;
+  border-size: 1px;
+  border-color: #000;
+  width: 20px;
+  height: 20px;
+}

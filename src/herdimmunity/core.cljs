@@ -1,13 +1,23 @@
 (ns herdimmunity.core
   (:require [om.core :as om :include-macros true]
-            [om.dom :as dom :include-macros true]))
+            [om.dom :as dom :include-macros true]
+            [herdimmunity.game :as game]))
 
 (enable-console-print!)
 
-(def app-state (atom {:text "Hello world!"}))
+(def app-state (atom {:board game/board}))
+
+(defn print-row
+  [row]
+  (map (fn [text] (dom/td nil text)) row))
+
+(defn print-board
+  [board]
+  (map (fn [row] (apply dom/tr nil (print-row row))) board))
 
 (om/root
-  (fn [app owner]
-    (dom/h1 nil (:text app)))
-  app-state
-  {:target (. js/document (getElementById "app"))})
+ (fn [app owner]
+   (apply dom/table #js {:className "main-board"}
+          (print-board (:board app))))
+ app-state
+ {:target (. js/document (getElementById "app"))})
