@@ -17,7 +17,8 @@
   [row]
   (let [type-switcher (fn [type]
                         (or (alive? type) (dead? type) "empty"))]
-    (map (fn [text] (dom/td #js {:className (type-switcher text)} nil)) row)))
+    (map (fn [text] (dom/td #js {:className (type-switcher text)
+                                :onClick (fn [e] (js/console.log (.. e -target -className)))} nil)) row)))
 
 (defn print-board
   [board]
