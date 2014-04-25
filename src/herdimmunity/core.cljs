@@ -7,19 +7,19 @@
 
 (def app-state (atom {:board game/board}))
 
-(defn print-row
-  [row]
-  (map (fn [text] (dom/td #js {:className (name text)
-                              :onClick (fn [e] (js/console.log (.. e -target -className)))}
-                         nil))
-       row))
+(defn cycle-state [curr-state]
+  (let [transitions {:alive :infected
+                     :infected :dead
+                     :dead :empty
+                     :empty :alive}]
+    [((first curr-state) transitions)]))
 
 (defn cell-view [cell owner]
   (reify
     om/IRender
     (render [_]
-      (dom/td #js {:className (name cell)
-                              :onClick (fn [e] (js/console.log (.. e -target -className)))}
+      (dom/td #js {:className (name (first cell))
+                   :onClick #(om/transact! cell cycle-state)}
                          nil))))
 
 (defn board-view [app owner]
