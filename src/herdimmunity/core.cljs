@@ -14,13 +14,22 @@
                          nil))
        row))
 
-(defn print-board
-  [board]
-  (map (fn [row] (apply dom/tr nil (print-row row))) board))
+(defn cell-view [cell owner]
+  (reify
+    om/IRender
+    (render [_]
+      (dom/td #js {:className (name cell)
+                              :onClick (fn [e] (js/console.log (.. e -target -className)))}
+                         nil))))
 
-(om/root
- (fn [app owner]
-   (apply dom/table #js {:className "main-board"}
-          (print-board (:board app))))
- app-state
- {:target (. js/document (getElementById "app"))})
+(defn board-view [app owner]
+  (reify
+    om/IRender
+    (render [_]
+      (apply dom/table #js {:className "main-board"}
+             (map (fn [row] (apply dom/tr nil
+                                  (om/build-all cell-view row)))
+                  (:board app))))))
+
+(om/root board-view app-state
+         {:target (. js/document (getElementById "app"))})
