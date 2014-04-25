@@ -26,10 +26,13 @@
   (reify
     om/IRender
     (render [_]
-      (apply dom/table #js {:className "main-board"}
-             (map (fn [row] (apply dom/tr nil
-                                  (om/build-all cell-view row)))
-                  (:board app))))))
+      (dom/div nil
+               (apply dom/table #js {:className "main-board"}
+                      (map (fn [row] (apply dom/tr nil
+                                           (om/build-all cell-view row)))
+                           (:board app)))
+               (dom/button #js {:onClick #(om/transact! app :board game/step)}
+                           "Next step")))))
 
 (om/root board-view app-state
          {:target (. js/document (getElementById "app"))})
