@@ -5,7 +5,9 @@
 
 (enable-console-print!)
 
-(def app-state (atom {:board (game/gen-board 20)}))
+(def board-size 20)
+
+(def app-state (atom {:board (game/gen-board board-size)}))
 
 (defn cycle-state [curr-state]
   (let [transitions {:alive :infected
@@ -32,7 +34,9 @@
                                            (om/build-all cell-view row)))
                            (:board app)))
                (dom/button #js {:onClick #(om/transact! app :board game/step)}
-                           "Next step")))))
+                           "Next step")
+               (dom/button #js {:onClick #(om/update! app :board (game/gen-board board-size))}
+                           "New Game")))))
 
 (om/root board-view app-state
          {:target (. js/document (getElementById "app"))})
