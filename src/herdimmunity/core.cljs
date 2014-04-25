@@ -5,7 +5,7 @@
 
 (enable-console-print!)
 
-(def app-state (atom {:board game/board}))
+(def app-state (atom {:board (game/gen-board 20)}))
 
 (defn cycle-state [curr-state]
   (let [transitions {:alive :infected
