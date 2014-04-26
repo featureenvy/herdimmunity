@@ -1,6 +1,6 @@
-.main-board {
-  width: 80%;
-  height: 80%;
+#main-board {
+  width: 600px;
+  height: 600px;
 }
 
 .main-board .dead {

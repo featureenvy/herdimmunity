@@ -5,8 +5,8 @@
 
 (enable-console-print!)
 
-(def board-size 20)
-(def width 20)
+(def board-size 50)
+(def width board-size)
 (def height width)
 
 (def app-state (atom {:board (game/gen-board board-size)}))
@@ -18,42 +18,44 @@
                      :empty :alive}]
     [((first curr-state) transitions)]))
 
-(defn cell-view [cell owner]
-  (reify
-    om/IRenderState
-    (render-state [_ {:keys [x y]}]
-      (dom/rect #js {:x (* x width) :y (* y height)
-                     :width width :height height
-                     :className (name (first cell))
-                                        ;:onClick #(om/transact! cell cycle-state)
-                     :onClick (fn [e] (om/transact! cell (fn [_] [:dead])))
-                     }
-                nil))))
+(defn get-color [state]
+  (cond
+   (= :alive state) "green"
+   (= :infected state) "yellow"
+   (= :dead state) "red"
+   :else "white"))
 
-(defn row-view [row owner]
-  (reify
-    om/IRenderState
-    (render-state [_ {:keys [y]}]
-      (map-indexed (fn [x cell] (om/build cell-view cell
-                                         {:init-state {:x x :y y}}))
-                   row))))
+(defn draw-cell [canvas cell pos]
+  (let [x (mod pos width)
+        y (.floor js/Math (/ pos width))
+        x-pos (* board-size x)
+        y-pos (* board-size y)
+        context (.getContext canvas "2d")]
+    (set! (.-fillStyle context) (get-color cell))
+    (.fillRect context x-pos y-pos width height)))
+
+(defn fill-canvas [board canvas]
+  (doall (map-indexed (fn [y cell]
+                        (draw-cell canvas cell y))
+                      (flatten board))))
 
 (defn board-view [app owner]
   (reify
     om/IRender
     (render [_]
       (dom/div nil
-               (apply dom/svg #js {:className "main-board"}
-                      (apply concat
-                             (map-indexed (fn [y row]
-                                            (map-indexed (fn [x cell] (om/build cell-view cell
-                                                                               {:init-state {:x x :y y}}))
-                                                         row))
-                                          (:board app))))
+               (dom/canvas #js {:id "main-board" :ref "main-board" :width (* width board-size) :height (* height board-size)}
+                           nil)
                (dom/button #js {:onClick #(om/transact! app :board game/step)}
                            "Next step")
                (dom/button #js {:onClick #(om/update! app :board (game/gen-board board-size))}
-                           "New Game")))))
+                           "New Game")))
+    om/IDidUpdate
+    (did-update [_ _ _]
+      (fill-canvas (:board app) (om/get-node owner "main-board")))
+    om/IDidMount
+    (did-mount [_]
+      (fill-canvas (:board app) (om/get-node owner "main-board")))))
 
 (om/root board-view app-state
          {:target (. js/document (getElementById "app"))})
