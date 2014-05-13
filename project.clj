@@ -18,6 +18,9 @@
 
   :source-paths ["src"]
 
+  :repl-options {
+                 :init (use 'herdimmunity.server)}
+
   :cljsbuild {
   :builds [{:id "dev"
             :source-paths ["src"]
