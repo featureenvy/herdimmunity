@@ -1,7 +1,8 @@
 (ns herdimmunity.core
   (:require [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
-            [herdimmunity.game :as game]))
+            [herdimmunity.game :as game]
+            [herdimmunity.webgl :as webgl]))
 
 (enable-console-print!)
 
@@ -11,33 +12,8 @@
 
 (def app-state (atom {:board (game/gen-board board-size)}))
 
-(defn cycle-state [curr-state]
-  (let [transitions {:alive :infected
-                     :infected :dead
-                     :dead :empty
-                     :empty :alive}]
-    [((first curr-state) transitions)]))
-
-(defn get-color [state]
-  (cond
-   (= :alive state) "green"
-   (= :infected state) "yellow"
-   (= :dead state) "red"
-   :else "white"))
-
-(defn draw-cell [canvas cell pos]
-  (let [x (mod pos width)
-        y (.floor js/Math (/ pos width))
-        x-pos (* board-size x)
-        y-pos (* board-size y)
-        context (.getContext canvas "2d")]
-    (set! (.-fillStyle context) (get-color cell))
-    (.fillRect context x-pos y-pos width height)))
-
 (defn fill-canvas [board canvas]
-  (doall (map-indexed (fn [y cell]
-                        (draw-cell canvas cell y))
-                      (flatten board))))
+  (.log js/console "Filling canvas"))
 
 (defn board-view [app owner]
   (reify
