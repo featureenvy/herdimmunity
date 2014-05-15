@@ -13,7 +13,7 @@
 (def app-state (atom {:board (game/gen-board board-size)}))
 
 (defn fill-canvas [board canvas]
-  (.log js/console "Filling canvas"))
+  (webgl/webgl-start))
 
 (defn board-view [app owner]
   (reify
