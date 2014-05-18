@@ -1,7 +1,9 @@
 (ns herdimmunity.webgl)
 
 (def triangle-vertex-position-buffer (atom []))
+(def triangle-vertex-color-buffer (atom []))
 (def square-vertex-position-buffer (atom []))
+(def square-vertex-color-buffer (atom []))
 (def p-matrix (atom (.create js/mat4)))
 (def mv-matrix (atom (.create js/mat4)))
 
@@ -23,6 +25,9 @@
     (set! (.-vertexPositionAttribute shader-program) (.getAttribLocation gl shader-program "aVertexPosition"))
     (.enableVertexAttribArray gl (.-vertexPositionAttribute shader-program))
 
+    (set! (.-vertexColorAttribute shader-program) (.getAttribLocation gl shader-program "aVertexColor"))
+    (.enableVertexAttribArray gl (.-vertexColorAttribute shader-program))
+
     (set! (.-pMatrixUniform shader-program) (.getUniformLocation gl shader-program "uPMatrix"))
     (set! (.-mvMatrixUniform shader-program) (.getUniformLocation gl shader-program "uMVMatrix"))
 
@@ -36,39 +41,67 @@
   (let [t-vertices #js [0.0 1.0 0.0
                   -1.0 -1.0 0.0
                         1.0 -1.0 0.0]
+        t-colors #js [1.0 0.0 0.0 1.0
+                      0.0 1.0 0.0 1.0
+                      0.0 0.0 1.0 1.0]
         s-vertices #js [1.0 1.0 0.0
                         -1.0 1.0 0.0
                         1.0 -1.0 0.0
-                        -1.0 -1.0 0.0]]
+                        -1.0 -1.0 0.0]
+        s-colors #js [0.5 0.5 1.0 1.0
+                      0.5 0.5 1.0 1.0
+                      0.5 0.5 1.0 1.0
+                      0.5 0.5 1.0 1.0]]
     (reset! triangle-vertex-position-buffer (.createBuffer gl))
     (.bindBuffer gl (.-ARRAY_BUFFER gl) @triangle-vertex-position-buffer)
     (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. t-vertices) (.-STATIC_DRAW gl))
     (set! (.-itemSize @triangle-vertex-position-buffer) 3)
     (set! (.-numItems @triangle-vertex-position-buffer) 3)
 
+    (reset! triangle-vertex-color-buffer (.createBuffer gl))
+    (.bindBuffer gl (.-ARRAY_BUFFER gl) @triangle-vertex-color-buffer)
+    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. t-colors) (.-STATIC_DRAW gl))
+    (set! (.-itemSize @triangle-vertex-color-buffer) 4)
+    (set! (.-numItems @triangle-vertex-color-buffer) 3)
+
     (reset! square-vertex-position-buffer (.createBuffer gl))
     (.bindBuffer gl (.-ARRAY_BUFFER gl) @square-vertex-position-buffer)
     (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. s-vertices) (.-STATIC_DRAW gl))
     (set! (.-itemSize @square-vertex-position-buffer) 3)
-    (set! (.-numItems @square-vertex-position-buffer) 4)))
+    (set! (.-numItems @square-vertex-position-buffer) 4)
+
+    (reset! square-vertex-color-buffer (.createBuffer gl))
+    (.bindBuffer gl (.-ARRAY_BUFFER gl) @square-vertex-color-buffer)
+    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. s-colors) (.-STATIC_DRAW gl))
+    (set! (.-itemSize @square-vertex-color-buffer) 4)
+    (set! (.-numItems @square-vertex-color-buffer) 4)
+    ))
 
 (defn draw-scene [gl shader-program]
   (.viewport gl 0 0 (.-viewportWidth gl) (.-viewportHeight gl))
   (.clear gl (bit-or (.-COLOR_BUFFER_BIT gl) (.-DEPTH_BUFFER_BIT gl)))
+  
   (.perspective js/mat4 @p-matrix 45 (/ (.-viewportWidth gl) (.-viewportHeight gl)) 0.1 100.0)
   (.identity js/mat4 @mv-matrix)
+  
   (.translate js/mat4 @mv-matrix @mv-matrix #js [-1.5 0.0 -7.0])
   (.bindBuffer gl (.-ARRAY_BUFFER gl) @triangle-vertex-position-buffer)
   (.vertexAttribPointer gl (.-vertexPositionAttribute shader-program) (.-itemSize @triangle-vertex-position-buffer) (.-FLOAT gl) false 0 0)
+
+  (.bindBuffer gl (.-ARRAY_BUFFER gl) @triangle-vertex-color-buffer)
+  (.vertexAttribPointer gl (.-vertexColorAttribute shader-program) (.-itemSize @triangle-vertex-position-buffer) (.-FLOAT gl) false 0 0)
   
   (set-matrix-uniforms gl shader-program)
-
   (.drawArrays gl (.-TRIANGLES gl) 0 (.-numItems @triangle-vertex-position-buffer))
+  
   (.translate js/mat4 @mv-matrix @mv-matrix #js [3.0 0.0 0.0])
   (.bindBuffer gl (.-ARRAY_BUFFER gl) @square-vertex-position-buffer)
   (.vertexAttribPointer gl (.-vertexPositionAttribute shader-program) (.-itemSize @square-vertex-position-buffer) (.-FLOAT gl) false 0 0)
-  (set-matrix-uniforms gl shader-program)
 
+  (.bindBuffer gl (.-ARRAY_BUFFER gl) @square-vertex-color-buffer)
+  (.vertexAttribPointer gl (.-vertexColorAttribute shader-program) (.-itemSize @square-vertex-color-buffer) (.-FLOAT gl) false 0 0)
+  
+  (set-matrix-uniforms gl shader-program)
   (.drawArrays gl (.-TRIANGLE_STRIP gl) 0 (.-numItems @square-vertex-position-buffer)))
 
 (defn webgl-start []
