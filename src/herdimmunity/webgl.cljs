@@ -6,6 +6,27 @@
 (def square-vertex-color-buffer (atom []))
 (def p-matrix (atom (.create js/mat4)))
 (def mv-matrix (atom (.create js/mat4)))
+(def mv-matrix-stack (atom []))
+(def r-tri (atom 0))
+(def r-square (atom 0))
+(def last-time (atom 0))
+(def gl-obj (atom 0))
+(def shader-program-obj (atom 0))
+
+(defn mv-push-matrix
+  []
+  (let [copy (.create js/mat4)]
+    (.copy js/mat4 copy @mv-matrix)
+    (reset! mv-matrix-stack (conj @mv-matrix-stack copy))))
+
+(defn mv-pop-matrix
+  []
+  (reset! mv-matrix (last @mv-matrix-stack))
+  (reset! mv-matrix-stack (butlast @mv-matrix-stack)))
+
+(defn deg-to-rad
+  [degrees]
+  (/ (* degrees (.-PI js/Math)) 180))
 
 (defn init-gl [canvas]
   (let [gl (.getContext canvas "webgl")]
@@ -85,6 +106,8 @@
   (.identity js/mat4 @mv-matrix)
   
   (.translate js/mat4 @mv-matrix @mv-matrix #js [-1.5 0.0 -7.0])
+  (mv-push-matrix)
+  (.rotate js/mat4 @mv-matrix @mv-matrix (deg-to-rad @r-tri) #js [0 1 0])
   (.bindBuffer gl (.-ARRAY_BUFFER gl) @triangle-vertex-position-buffer)
   (.vertexAttribPointer gl (.-vertexPositionAttribute shader-program) (.-itemSize @triangle-vertex-position-buffer) (.-FLOAT gl) false 0 0)
 
@@ -93,8 +116,12 @@
   
   (set-matrix-uniforms gl shader-program)
   (.drawArrays gl (.-TRIANGLES gl) 0 (.-numItems @triangle-vertex-position-buffer))
+
+  (mv-pop-matrix)
   
   (.translate js/mat4 @mv-matrix @mv-matrix #js [3.0 0.0 0.0])
+  (mv-push-matrix)
+  (.rotate js/mat4 @mv-matrix @mv-matrix (deg-to-rad @r-square) #js [1 0 0])
   (.bindBuffer gl (.-ARRAY_BUFFER gl) @square-vertex-position-buffer)
   (.vertexAttribPointer gl (.-vertexPositionAttribute shader-program) (.-itemSize @square-vertex-position-buffer) (.-FLOAT gl) false 0 0)
 
@@ -102,7 +129,24 @@
   (.vertexAttribPointer gl (.-vertexColorAttribute shader-program) (.-itemSize @square-vertex-color-buffer) (.-FLOAT gl) false 0 0)
   
   (set-matrix-uniforms gl shader-program)
-  (.drawArrays gl (.-TRIANGLE_STRIP gl) 0 (.-numItems @square-vertex-position-buffer)))
+  (.drawArrays gl (.-TRIANGLE_STRIP gl) 0 (.-numItems @square-vertex-position-buffer)  (mv-pop-matrix)))
+
+(defn animate
+  []
+  (let [time-now (.getTime (js/Date.))
+        elapsed (- time-now @last-time)]
+    (if (not= @last-time 0)
+      (do
+        (reset! r-tri (+ @r-tri (/ (* 90 elapsed) 1000)))
+        (reset! r-square (+ @r-square (/ (* 75 elapsed) 1000)))))
+    (reset! last-time time-now)))
+
+(defn tick
+  []
+  (js/requestAnimationFrame tick)
+
+  (draw-scene @gl-obj @shader-program-obj)
+  (animate))
 
 (defn webgl-start []
   (let [canvas (.getElementById js/document "main-board")
@@ -113,4 +157,7 @@
     (.clearColor gl 0.0 0.0 0.0 1.0)
     (.enable gl (.-DEPTH_TEST gl))
 
-    (draw-scene gl shader-program)))
+    (reset! gl-obj gl)
+    (reset! shader-program-obj shader-program)
+
+    (tick)))
