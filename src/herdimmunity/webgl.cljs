@@ -112,7 +112,7 @@
   (.vertexAttribPointer gl (.-vertexPositionAttribute shader-program) (.-itemSize @triangle-vertex-position-buffer) (.-FLOAT gl) false 0 0)
 
   (.bindBuffer gl (.-ARRAY_BUFFER gl) @triangle-vertex-color-buffer)
-  (.vertexAttribPointer gl (.-vertexColorAttribute shader-program) (.-itemSize @triangle-vertex-position-buffer) (.-FLOAT gl) false 0 0)
+  (.vertexAttribPointer gl (.-vertexColorAttribute shader-program) (.-itemSize @triangle-vertex-color-buffer) (.-FLOAT gl) false 0 0)
   
   (set-matrix-uniforms gl shader-program)
   (.drawArrays gl (.-TRIANGLES gl) 0 (.-numItems @triangle-vertex-position-buffer))
