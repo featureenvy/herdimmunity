@@ -7,12 +7,17 @@
 (def mv-matrix (atom (.create js/mat4)))
 (def mv-matrix-stack (atom []))
 (def x-rot (atom 0))
+(def x-speed (atom 0))
 (def y-rot (atom 0))
+(def y-speed (atom 0))
 (def z-rot (atom 0))
+(def z (atom -5))
+(def shader-filter (atom 0))
 (def last-time (atom 0))
 (def gl-obj (atom 0))
 (def shader-program-obj (atom 0))
-(def nehe-texture (atom 0))
+(def crate-textures (atom []))
+(def currently-pressed-key (atom -1))
 
 (defn mv-push-matrix
   []
@@ -29,18 +34,53 @@
   [degrees]
   (/ (* degrees (.-PI js/Math)) 180))
 
+(defn handle-key-down [event]
+  (reset! currently-pressed-key (.-keyCode event))
+  (if (= "F" (.fromCharCode js/String (.-keyCode event)))
+    (do
+      (swap! shader-filter inc)
+      (if (= 3 @shader-filter)
+        (reset! shader-filter 0)))))
+
+(defn handle-key-up [event]
+  (reset! currently-pressed-key -1))
+
+(defn handle-keys []
+  (condp = @currently-pressed-key
+    33 (reset! z (- @z 0.05))
+    34 (reset! z (+ @z 0.05))
+    37 (swap! y-speed dec)
+    39 (swap! y-speed inc)
+    38 (swap! x-speed dec)
+    40 (swap! x-speed inc)
+    nil))
+
 (defn init-gl [canvas]
   (let [gl (.getContext canvas "webgl")]
     (set! (.-viewportWidth gl) (.-width canvas))
     (set! (.-viewportHeight gl) (.-height canvas))
     gl))
 
-(defn handle-loaded-texture [gl texture]
-  (.bindTexture gl (.-TEXTURE_2D gl) texture)
+(defn handle-loaded-texture [gl textures]
   (.pixelStorei gl (.-UNPACK_FLIP_Y_WEBGL gl) true)
-  (.texImage2D gl (.-TEXTURE_2D gl) 0 (.-RGBA gl) (.-RGBA gl) (.-UNSIGNED_BYTE gl)  (.-image texture))
+  
+  (.bindTexture gl (.-TEXTURE_2D gl) (nth textures 0))
+  (.texImage2D gl (.-TEXTURE_2D gl) 0 (.-RGBA gl) (.-RGBA gl) (.-UNSIGNED_BYTE gl)  (.-image (nth textures 0)))
   (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MAG_FILTER gl) (.-NEAREST gl))
   (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MIN_FILTER gl) (.-NEAREST gl))
+
+  (.bindTexture gl (.-TEXTURE_2D gl) (nth textures 1))
+  (.texImage2D gl (.-TEXTURE_2D gl) 0 (.-RGBA gl) (.-RGBA gl) (.-UNSIGNED_BYTE gl)  (.-image (nth textures 1)))
+  (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MAG_FILTER gl) (.-LINEAR gl))
+  (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MIN_FILTER gl) (.-LINEAR gl))
+
+  (.bindTexture gl (.-TEXTURE_2D gl) (nth textures 2))
+  (set! (.-number (nth textures 2)) "three")
+  (.texImage2D gl (.-TEXTURE_2D gl) 0 (.-RGBA gl) (.-RGBA gl) (.-UNSIGNED_BYTE gl)  (.-image (nth textures 2)))
+  (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MAG_FILTER gl) (.-LINEAR gl))
+  (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MIN_FILTER gl) (.-LINEAR_MIPMAP_NEAREST gl))
+  (.generateMipmap gl (.-TEXTURE_2D gl))
+  
   (.bindTexture gl (.-TEXTURE_2D gl) nil))
 
 (defn init-shaders [gl]
@@ -145,10 +185,13 @@
     (set! (.-numItems @cube-vertex-index-buffer) 36)))
 
 (defn init-texture [gl]
-  (reset! nehe-texture (.createTexture gl))
-  (set! (.-image @nehe-texture) (js/Image.))
-  (set! (.-onload (.-image @nehe-texture)) (partial handle-loaded-texture gl @nehe-texture))
-  (set! (.-src (.-image @nehe-texture)) "nehe.gif"))
+  (let [crate-image (js/Image.)]
+    (dotimes [n 3]
+      (let [texture (.createTexture gl)]
+        (set! (.-image texture) crate-image)
+        (reset! crate-textures (conj @crate-textures texture))))
+    (set! (.-onload crate-image) (partial handle-loaded-texture gl @crate-textures))
+    (set! (.-src crate-image) "crate.gif")))
 
 (defn draw-scene [gl shader-program]
   (.viewport gl 0 0 (.-viewportWidth gl) (.-viewportHeight gl))
@@ -157,10 +200,9 @@
   (.perspective js/mat4 @p-matrix 45 (/ (.-viewportWidth gl) (.-viewportHeight gl)) 0.1 100.0)
   (.identity js/mat4 @mv-matrix)
   
-  (.translate js/mat4 @mv-matrix @mv-matrix #js [0.0 0.0 -5.0])
+  (.translate js/mat4 @mv-matrix @mv-matrix #js [0.0 0.0 @z])
   (.rotate js/mat4 @mv-matrix @mv-matrix (deg-to-rad @x-rot) #js [1 0 0])
   (.rotate js/mat4 @mv-matrix @mv-matrix (deg-to-rad @y-rot) #js [0 1 0])
-  (.rotate js/mat4 @mv-matrix @mv-matrix (deg-to-rad @z-rot) #js [0 0 1])
   
   (.bindBuffer gl (.-ARRAY_BUFFER gl) @cube-vertex-position-buffer)
   (.vertexAttribPointer gl (.-vertexPositionAttribute shader-program) (.-itemSize @cube-vertex-position-buffer) (.-FLOAT gl) false 0 0)
@@ -169,7 +211,7 @@
   (.vertexAttribPointer gl (.-textureCoordAttribute shader-program) (.-itemSize @cube-vertex-texture-coord-buffer) (.-FLOAT gl) false 0 0)
 
   (.activeTexture gl (.-TEXTURE0 gl))
-  (.bindTexture gl (.-TEXTURE_2D gl) @nehe-texture)
+  (.bindTexture gl (.-TEXTURE_2D gl) (nth @crate-textures @shader-filter))
   (.uniform1i gl (.-samplerUniform shader-program) 0)
 
   (.bindBuffer gl (.-ELEMENT_ARRAY_BUFFER gl) @cube-vertex-index-buffer)
@@ -182,15 +224,14 @@
         elapsed (- time-now @last-time)]
     (if (not= @last-time 0)
       (do
-        (reset! x-rot (+ @x-rot (/ (* 90 elapsed) 1000)))
-        (reset! y-rot (+ @y-rot (/ (* 90 elapsed) 1000)))
-        (reset! z-rot (+ @z-rot (/ (* 90 elapsed) 1000)))))
+        (reset! x-rot (+ @x-rot (/ (* @x-speed elapsed) 1000)))
+        (reset! y-rot (+ @y-rot (/ (* @y-speed elapsed) 1000)))))
     (reset! last-time time-now)))
 
 (defn tick
   []
   (js/requestAnimationFrame tick)
-
+  (handle-keys)
   (draw-scene @gl-obj @shader-program-obj)
   (animate))
 
@@ -203,6 +244,9 @@
 
     (.clearColor gl 0.0 0.0 0.0 1.0)
     (.enable gl (.-DEPTH_TEST gl))
+
+    (set! (.-onkeydown js/document) handle-key-down)
+    (set! (.-onkeyup js/document) handle-key-up)
 
     (reset! gl-obj gl)
     (reset! shader-program-obj shader-program)
