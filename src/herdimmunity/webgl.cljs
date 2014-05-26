@@ -3,6 +3,7 @@
 (def cube-vertex-position-buffer (atom []))
 (def cube-vertex-texture-coord-buffer (atom []))
 (def cube-vertex-index-buffer (atom []))
+(def cube-vertex-normal-buffer (atom []))
 (def p-matrix (atom (.create js/mat4)))
 (def mv-matrix (atom (.create js/mat4)))
 (def mv-matrix-stack (atom []))
@@ -16,8 +17,11 @@
 (def last-time (atom 0))
 (def gl-obj (atom 0))
 (def shader-program-obj (atom 0))
-(def crate-textures (atom []))
+(def crate-texture (atom []))
 (def currently-pressed-key (atom -1))
+(def lightning (atom 0))
+(def lightning-direction (atom []))
+(def adjusted-ld (atom []))
 
 (defn mv-push-matrix
   []
@@ -35,12 +39,7 @@
   (/ (* degrees (.-PI js/Math)) 180))
 
 (defn handle-key-down [event]
-  (reset! currently-pressed-key (.-keyCode event))
-  (if (= "F" (.fromCharCode js/String (.-keyCode event)))
-    (do
-      (swap! shader-filter inc)
-      (if (= 3 @shader-filter)
-        (reset! shader-filter 0)))))
+  (reset! currently-pressed-key (.-keyCode event)))
 
 (defn handle-key-up [event]
   (reset! currently-pressed-key -1))
@@ -61,22 +60,11 @@
     (set! (.-viewportHeight gl) (.-height canvas))
     gl))
 
-(defn handle-loaded-texture [gl textures]
+(defn handle-loaded-texture [gl texture]
   (.pixelStorei gl (.-UNPACK_FLIP_Y_WEBGL gl) true)
-  
-  (.bindTexture gl (.-TEXTURE_2D gl) (nth textures 0))
-  (.texImage2D gl (.-TEXTURE_2D gl) 0 (.-RGBA gl) (.-RGBA gl) (.-UNSIGNED_BYTE gl)  (.-image (nth textures 0)))
-  (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MAG_FILTER gl) (.-NEAREST gl))
-  (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MIN_FILTER gl) (.-NEAREST gl))
 
-  (.bindTexture gl (.-TEXTURE_2D gl) (nth textures 1))
-  (.texImage2D gl (.-TEXTURE_2D gl) 0 (.-RGBA gl) (.-RGBA gl) (.-UNSIGNED_BYTE gl)  (.-image (nth textures 1)))
-  (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MAG_FILTER gl) (.-LINEAR gl))
-  (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MIN_FILTER gl) (.-LINEAR gl))
-
-  (.bindTexture gl (.-TEXTURE_2D gl) (nth textures 2))
-  (set! (.-number (nth textures 2)) "three")
-  (.texImage2D gl (.-TEXTURE_2D gl) 0 (.-RGBA gl) (.-RGBA gl) (.-UNSIGNED_BYTE gl)  (.-image (nth textures 2)))
+  (.bindTexture gl (.-TEXTURE_2D gl) texture)
+  (.texImage2D gl (.-TEXTURE_2D gl) 0 (.-RGBA gl) (.-RGBA gl) (.-UNSIGNED_BYTE gl)  (.-image texture))
   (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MAG_FILTER gl) (.-LINEAR gl))
   (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MIN_FILTER gl) (.-LINEAR_MIPMAP_NEAREST gl))
   (.generateMipmap gl (.-TEXTURE_2D gl))
@@ -95,18 +83,31 @@
     (set! (.-vertexPositionAttribute shader-program) (.getAttribLocation gl shader-program "aVertexPosition"))
     (.enableVertexAttribArray gl (.-vertexPositionAttribute shader-program))
 
+    (set! (.-vertexNormalAttribute shader-program) (.getAttribLocation gl shader-program "aVertexNormal"))
+    (.enableVertexAttribArray gl (.-vertexNormalAttribute shader-program))
+
     (set! (.-textureCoordAttribute shader-program) (.getAttribLocation gl shader-program "aTextureCoord"))
     (.enableVertexAttribArray gl (.-textureCoordAttribute shader-program))
 
     (set! (.-pMatrixUniform shader-program) (.getUniformLocation gl shader-program "uPMatrix"))
     (set! (.-mvMatrixUniform shader-program) (.getUniformLocation gl shader-program "uMVMatrix"))
+    (set! (.-nMatrixUniform shader-program) (.getUniformLocation gl shader-program "uNMatrix"))
     (set! (.-samplerUniform shader-program) (.getUniformLocation gl shader-program "uSampler"))
+    (set! (.-useLightningUniform shader-program) (.getUniformLocation gl shader-program "uUseLighting"))
+    (set! (.-ambientColorUniform shader-program) (.getUniformLocation gl shader-program "uAmbientColor"))
+    (set! (.-lightningDirectionUniform shader-program) (.getUniformLocation gl shader-program "uLightingDirection"))
+    (set! (.-directionalColorUniform shader-program) (.getUniformLocation gl shader-program "uDirectionalColor"))
 
     shader-program))
 
 (defn set-matrix-uniforms [gl shader-program]
-  (.uniformMatrix4fv gl (.-pMatrixUniform shader-program) false @p-matrix)
-  (.uniformMatrix4fv gl (.-mvMatrixUniform shader-program) false @mv-matrix))
+  (let [normal-matrix (.create js/mat3)]
+    (.uniformMatrix4fv gl (.-pMatrixUniform shader-program) false @p-matrix)
+    (.uniformMatrix4fv gl (.-mvMatrixUniform shader-program) false @mv-matrix)
+
+    (.normalFromMat4 js/mat3 normal-matrix @mv-matrix)
+    ;(.transpose js/mat3 normal-matrix normal-matrix)
+    (.uniformMatrix3fv gl (.-nMatrixUniform shader-program) false normal-matrix)))
 
 (defn init-buffers [gl]
   (let [c-vertices #js [-1 -1 1 ; front face
@@ -164,6 +165,31 @@
                    12 13 14 12 14 15
                    16 17 18 16 18 19
                    20 21 22 20 22 23
+                       ]
+        c-normals #js [0 0 1 ; front face
+                       0 0 1
+                       0 0 1
+                       0 0 1
+                       0 0 -1 ; back face
+                       0 0 -1
+                       0 0 -1
+                       0 0 -1
+                       0 1 0 ; top face
+                       0 1 0
+                       0 1 0
+                       0 1 0
+                       0 -1 0 ; bottom face
+                       0 -1 0
+                       0 -1 0
+                       0 -1 0
+                       1 0 0 ; right face
+                       1 0 0
+                       1 0 0
+                       1 0 0
+                       -1 0 0 ; left face
+                       -1 0 0
+                       -1 0 0
+                       -1 0 0
                        ]]
     
     (reset! cube-vertex-position-buffer (.createBuffer gl))
@@ -182,15 +208,20 @@
     (.bindBuffer gl (.-ELEMENT_ARRAY_BUFFER gl) @cube-vertex-index-buffer)
     (.bufferData gl (.-ELEMENT_ARRAY_BUFFER gl) (js/Uint16Array. c-indexes) (.-STATIC_DRAW gl))
     (set! (.-itemSize @cube-vertex-index-buffer) 1)
-    (set! (.-numItems @cube-vertex-index-buffer) 36)))
+    (set! (.-numItems @cube-vertex-index-buffer) 36)
+
+    (reset! cube-vertex-normal-buffer (.createBuffer gl))
+    (.bindBuffer gl (.-ARRAY_BUFFER gl) @cube-vertex-normal-buffer)
+    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. c-normals) (.-STATIC_DRAW gl))
+    (set! (.-itemSize @cube-vertex-normal-buffer) 3)
+    (set! (.-numItems @cube-vertex-normal-buffer) 24)))
 
 (defn init-texture [gl]
   (let [crate-image (js/Image.)]
-    (dotimes [n 3]
-      (let [texture (.createTexture gl)]
-        (set! (.-image texture) crate-image)
-        (reset! crate-textures (conj @crate-textures texture))))
-    (set! (.-onload crate-image) (partial handle-loaded-texture gl @crate-textures))
+    (let [texture (.createTexture gl)]
+      (set! (.-image texture) crate-image)
+      (reset! crate-texture texture))
+    (set! (.-onload crate-image) (partial handle-loaded-texture gl @crate-texture))
     (set! (.-src crate-image) "crate.gif")))
 
 (defn draw-scene [gl shader-program]
@@ -210,9 +241,33 @@
   (.bindBuffer gl (.-ARRAY_BUFFER gl) @cube-vertex-texture-coord-buffer)
   (.vertexAttribPointer gl (.-textureCoordAttribute shader-program) (.-itemSize @cube-vertex-texture-coord-buffer) (.-FLOAT gl) false 0 0)
 
+  (.bindBuffer gl (.-ARRAY_BUFFER gl) @cube-vertex-normal-buffer)
+  (.vertexAttribPointer gl (.-vertexNormalAttribute shader-program) (.-itemSize @cube-vertex-normal-buffer) (.-FLOAT gl) false 0 0)
+
   (.activeTexture gl (.-TEXTURE0 gl))
-  (.bindTexture gl (.-TEXTURE_2D gl) (nth @crate-textures @shader-filter))
+  (.bindTexture gl (.-TEXTURE_2D gl) @crate-texture)
   (.uniform1i gl (.-samplerUniform shader-program) 0)
+
+  (reset! lightning (.-checked (.getElementById js/document "lighting")))
+  (.uniform1i gl (.-useLightningUniform shader-program) @lightning)
+  (if @lightning
+    (do
+      (.uniform3f gl (.-ambientColorUniform shader-program)
+                  (js/parseFloat (.-value (.getElementById js/document "ambientR")))
+                  (js/parseFloat (.-value (.getElementById js/document "ambientG")))
+                  (js/parseFloat (.-value (.getElementById js/document "ambientB"))))
+      (reset! lightning-direction #js [(js/parseFloat (.-value (.getElementById js/document "lightDirectionX")))
+                                   (js/parseFloat (.-value (.getElementById js/document "lightDirectionY")))
+                                   (js/parseFloat (.-value (.getElementById js/document "lightDirectionZ")))])
+      (reset! adjusted-ld (.create js/vec3))
+      (.normalize js/vec3 @adjusted-ld @lightning-direction)
+      (.scale js/vec3 @adjusted-ld @adjusted-ld -1)
+      (.uniform3fv gl (.-lightningDirectionUniform shader-program) @adjusted-ld)
+
+      (.uniform3f gl (.-directionalColorUniform shader-program)
+                  (js/parseFloat (.-value (.getElementById js/document "directionalR")))
+                  (js/parseFloat (.-value (.getElementById js/document "directionalG")))
+                  (js/parseFloat (.-value (.getElementById js/document "directionalB"))))))
 
   (.bindBuffer gl (.-ELEMENT_ARRAY_BUFFER gl) @cube-vertex-index-buffer)
   (set-matrix-uniforms gl shader-program)
