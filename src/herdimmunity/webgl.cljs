@@ -21,6 +21,7 @@
 (def currently-pressed-key (atom -1))
 (def lightning (atom 0))
 (def lightning-direction (atom []))
+(def blending (atom 0))
 (def adjusted-ld (atom []))
 
 (defn mv-push-matrix
@@ -97,6 +98,7 @@
     (set! (.-ambientColorUniform shader-program) (.getUniformLocation gl shader-program "uAmbientColor"))
     (set! (.-lightningDirectionUniform shader-program) (.getUniformLocation gl shader-program "uLightingDirection"))
     (set! (.-directionalColorUniform shader-program) (.getUniformLocation gl shader-program "uDirectionalColor"))
+    (set! (.-alphaUniform shader-program) (.getUniformLocation gl shader-program "uAlpha"))
 
     shader-program))
 
@@ -222,7 +224,7 @@
       (set! (.-image texture) crate-image)
       (reset! crate-texture texture))
     (set! (.-onload crate-image) (partial handle-loaded-texture gl @crate-texture))
-    (set! (.-src crate-image) "crate.gif")))
+    (set! (.-src crate-image) "glass.gif")))
 
 (defn draw-scene [gl shader-program]
   (.viewport gl 0 0 (.-viewportWidth gl) (.-viewportHeight gl))
@@ -247,6 +249,18 @@
   (.activeTexture gl (.-TEXTURE0 gl))
   (.bindTexture gl (.-TEXTURE_2D gl) @crate-texture)
   (.uniform1i gl (.-samplerUniform shader-program) 0)
+
+  (reset! blending (.-checked (.getElementById js/document "blending")))
+  (if @blending
+    (do
+      (.blendFunc gl (.-SRC_ALPHA gl) (.-ONE gl))
+      (.enable gl (.-BLEND gl))
+      (.disable gl (.-DEPTH_TEST gl))
+      (.uniform1f gl (.-alphaUniform shader-program) (js/parseFloat (.-value (.getElementById js/document "alpha"))))
+      )
+    (do
+      (.disable gl (.-BLEND gl))
+      (.enable gl (.-DEPTH_TEST gl))))
 
   (reset! lightning (.-checked (.getElementById js/document "lighting")))
   (.uniform1i gl (.-useLightningUniform shader-program) @lightning)
