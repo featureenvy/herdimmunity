@@ -32,18 +32,26 @@
 
 (defn init-buffers [gl]
   (let [s-vertices-buffer (.createBuffer gl)
-        s-vertices #js [-1 -1 0
+        s-vertices #js [-1 -1 0 ; right
                         1 -1 0
                         1 1 0
-                        -1 1 0]
+                        -1 1 0
+                        -3 -1 0 ; left
+                        -1 -1 0
+                        -1 1 0
+                        -3 1 0]
         s-index-buffer (.createBuffer gl)
-        s-indexes #js [0 1 2
-                       0 2 3]
+        s-indexes #js [0 1 2 0 2 3 ; right
+                       4 5 6 4 6 7] ; left
         s-color-buffer (.createBuffer gl)
-        s-colors #js [0.5 0.5 1.0 1.0
+        s-colors #js [0.5 0.5 1.0 1.0 ; right
                       0.5 0.5 1.0 1.0
                       0.5 0.5 1.0 1.0
-                      0.5 0.5 1.0 1.0]]
+                      0.5 0.5 1.0 1.0
+                      0.7 0.2 1.0 1.0 ; left
+                      1.0 0.2 1.0 1.0
+                      0.7 0.2 1.0 1.0
+                      0.7 0.2 1.0 1.0]]
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) s-vertices-buffer)
     (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. s-vertices) (.-STATIC_DRAW gl))
@@ -65,9 +73,9 @@
     (.viewport gl 0 0 (.-viewportWidth gl) (.-viewportHeight gl))
     (.clear gl (bit-or (.-COLOR_BUFFER_BIT gl) (.-DEPTH_BUFFER_BIT gl)))
     
-    (.perspective js/mat4 p-matrix 45 (/ (.-viewportWidth gl) (.-viewportHeight gl)) 0.1 100.0)
+    (.ortho js/mat4 p-matrix -4 4 -4 4 0.1 100.0)
     
-    (.translate js/mat4 mv-matrix mv-matrix #js [0 0 -7])
+    (.translate js/mat4 mv-matrix mv-matrix #js [0 0 -14])
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) vertex-buffer)
     (.vertexAttribPointer gl (attrib-location gl shader-program "aVertexPosition") 3 (.-FLOAT gl) false 0 0)
@@ -77,7 +85,7 @@
 
     (.bindBuffer gl (.-ELEMENT_ARRAY_BUFFER gl) index-buffer)
     (set-matrix-uniforms gl shader-program p-matrix mv-matrix)
-    (.drawElements gl (.-TRIANGLES gl) 6 (.-UNSIGNED_SHORT gl) 0)))
+    (.drawElements gl (.-TRIANGLES gl) 12 (.-UNSIGNED_SHORT gl) 0)))
 
 (defn tick
   [gl shader-program buffers]
