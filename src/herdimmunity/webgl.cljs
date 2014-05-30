@@ -16,6 +16,32 @@
     (set! (.-viewportHeight gl) (.-height canvas))
     gl))
 
+(defn build-tile-vertices [n]
+  (let [tile-template [[0 0 0]
+                       [1 0 0]
+                       [1 1 0]
+                       [0 1 0]]
+        increase-x (fn [[x y z]] [(+ x n) y z])]
+    (mapcat increase-x tile-template)))
+
+(defn build-tile-indices [n]
+  (let [index-template [0 1 2 0 2 3]]
+    (map (partial + (* n 4)) index-template)))
+
+(defn build-tile-colors [n]
+  (let [color-template [0.1 0.1 0.1 1.0
+                        0.1 0.1 0.1 1.0
+                        0.1 0.1 0.1 1.0
+                        0.1 0.1 0.1 1.0]]
+    (map (partial + (/ n 10)) color-template)))
+
+(defn create-tiles [size]
+  (let [index-template [0 1 2 0 2 3]
+        vertices (mapcat build-tile-vertices (range size))
+        indices (mapcat build-tile-indices (range size))
+        colors (mapcat build-tile-colors (range size))]
+    {:vertices vertices :indices indices :colors colors}))
+
 (defn init-shaders [gl]
   (let [fragment-shader (js/getShader gl "shader-fs")
         vertex-shader (js/getShader gl "shader-vs")
@@ -30,50 +56,41 @@
 
     shader-program))
 
-(defn init-buffers [gl]
+(defn init-buffers [gl board-size]
   (let [s-vertices-buffer (.createBuffer gl)
-        s-vertices #js [-1 -1 0 ; right
-                        1 -1 0
-                        1 1 0
-                        -1 1 0
-                        -3 -1 0 ; left
-                        -1 -1 0
-                        -1 1 0
-                        -3 1 0]
         s-index-buffer (.createBuffer gl)
-        s-indexes #js [0 1 2 0 2 3 ; right
-                       4 5 6 4 6 7] ; left
         s-color-buffer (.createBuffer gl)
         s-colors #js [0.5 0.5 1.0 1.0 ; right
                       0.5 0.5 1.0 1.0
                       0.5 0.5 1.0 1.0
                       0.5 0.5 1.0 1.0
                       0.7 0.2 1.0 1.0 ; left
-                      1.0 0.2 1.0 1.0
                       0.7 0.2 1.0 1.0
-                      0.7 0.2 1.0 1.0]]
+                      0.7 0.2 1.0 1.0
+                      0.7 0.2 1.0 1.0]
+        {:keys [vertices indices colors]} (create-tiles board-size)]
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) s-vertices-buffer)
-    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. s-vertices) (.-STATIC_DRAW gl))
+    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. (clj->js vertices)) (.-STATIC_DRAW gl))
 
     (.bindBuffer gl (.-ELEMENT_ARRAY_BUFFER gl) s-index-buffer)
-    (.bufferData gl (.-ELEMENT_ARRAY_BUFFER gl) (js/Uint16Array. s-indexes) (.-STATIC_DRAW gl))
+    (.bufferData gl (.-ELEMENT_ARRAY_BUFFER gl) (js/Uint16Array. (clj->js indices)) (.-STATIC_DRAW gl))
 
     (.bindBuffer gl (.-ARRAY_BUFFER gl) s-color-buffer)
-    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. s-colors) (.-STATIC_DRAW gl))
+    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. (clj->js colors)) (.-STATIC_DRAW gl))
 
     {:vertex-buffer s-vertices-buffer
      :index-buffer s-index-buffer
      :color-buffer s-color-buffer}))
 
 (defn draw-scene
-  [gl shader-program {:keys [vertex-buffer index-buffer color-buffer]}]
+  [gl shader-program {:keys [vertex-buffer index-buffer color-buffer]} board-size]
   (let [mv-matrix (.create js/mat4)
         p-matrix (.create js/mat4)]
     (.viewport gl 0 0 (.-viewportWidth gl) (.-viewportHeight gl))
     (.clear gl (bit-or (.-COLOR_BUFFER_BIT gl) (.-DEPTH_BUFFER_BIT gl)))
     
-    (.ortho js/mat4 p-matrix -4 4 -4 4 0.1 100.0)
+    (.ortho js/mat4 p-matrix 0 board-size board-size 0 0.1 100.0)
     
     (.translate js/mat4 mv-matrix mv-matrix #js [0 0 -14])
     
@@ -85,20 +102,21 @@
 
     (.bindBuffer gl (.-ELEMENT_ARRAY_BUFFER gl) index-buffer)
     (set-matrix-uniforms gl shader-program p-matrix mv-matrix)
-    (.drawElements gl (.-TRIANGLES gl) 12 (.-UNSIGNED_SHORT gl) 0)))
+    (.drawElements gl (.-TRIANGLES gl) (* 6 board-size) (.-UNSIGNED_SHORT gl) 0)))
 
 (defn tick
-  [gl shader-program buffers]
-  (js/requestAnimationFrame (partial tick gl shader-program buffers))
-  (draw-scene gl shader-program buffers))
+  [gl shader-program buffers board-size]
+  (js/requestAnimationFrame (partial tick gl shader-program buffers board-size))
+  (draw-scene gl shader-program buffers board-size))
 
 (defn webgl-start []
-  (let [canvas (.getElementById js/document "main-board")
+  (let [board-size 5
+        canvas (.getElementById js/document "main-board")
         gl (init-gl canvas)
         shader-program (init-shaders gl)
-        buffers (init-buffers gl)]
+        buffers (init-buffers gl board-size)]
 
     (.clearColor gl 0.0 0.0 0.0 1.0)
     (.enable gl (.-DEPTH_TEST gl))
 
-    (tick gl shader-program buffers)))
+    (tick gl shader-program buffers board-size)))
