@@ -16,31 +16,39 @@
     (set! (.-viewportHeight gl) (.-height canvas))
     gl))
 
-(defn build-tile-vertices [n]
+(defn build-tile-vertices [x-coord y-coord]
   (let [tile-template [[0 0 0]
                        [1 0 0]
                        [1 1 0]
                        [0 1 0]]
-        increase-x (fn [[x y z]] [(+ x n) y z])]
-    (mapcat increase-x tile-template)))
+        translate (fn [[x y z]] [(+ x x-coord) (+ y y-coord) z])]
+    (mapcat translate tile-template)))
 
-(defn build-tile-indices [n]
-  (let [index-template [0 1 2 0 2 3]]
-    (map (partial + (* n 4)) index-template)))
+(defn build-tile-indices [x-coord y-coord]
+  (let [index-template [0 1 2 0 2 3]
+        offset (* 4 y-coord)
+        translate (partial + offset (* x-coord 4))]
+    (map translate index-template)))
 
-(defn build-tile-colors [n]
-  (let [color-template [0.1 0.1 0.1 1.0
-                        0.1 0.1 0.1 1.0
-                        0.1 0.1 0.1 1.0
-                        0.1 0.1 0.1 1.0]]
-    (map (partial + (/ n 10)) color-template)))
+(defn build-tile-colors [x-coord y-coord]
+  (let [color-template [[0.1 0.1 0.1 1.0]
+                        [0.1 0.1 0.1 1.0]
+                        [0.1 0.1 0.1 1.0]
+                        [0.1 0.1 0.1 1.0]]
+        x-inc (* x-coord 0.1)
+        y-inc (* y-coord 0.1)
+        translate (fn [[x y z a]] [(+ x x-inc) (+ y y-inc) z a])]
+    (mapcat translate color-template)))
+
+(defn create-tiles-row [size y-coord]
+  (let [index-template [0 1 2 0 2 3]
+        vertices (mapcat #(build-tile-vertices % y-coord) (range size))
+        indices (mapcat #(build-tile-indices % (* y-coord size)) (range size))
+        colors (mapcat #(build-tile-colors % y-coord) (range size))]
+    {:vertices vertices :indices indices :colors colors}))
 
 (defn create-tiles [size]
-  (let [index-template [0 1 2 0 2 3]
-        vertices (mapcat build-tile-vertices (range size))
-        indices (mapcat build-tile-indices (range size))
-        colors (mapcat build-tile-colors (range size))]
-    {:vertices vertices :indices indices :colors colors}))
+  (reduce #(merge-with concat %1 (create-tiles-row size %2)) {}  (range size)))
 
 (defn init-shaders [gl]
   (let [fragment-shader (js/getShader gl "shader-fs")
@@ -60,14 +68,6 @@
   (let [s-vertices-buffer (.createBuffer gl)
         s-index-buffer (.createBuffer gl)
         s-color-buffer (.createBuffer gl)
-        s-colors #js [0.5 0.5 1.0 1.0 ; right
-                      0.5 0.5 1.0 1.0
-                      0.5 0.5 1.0 1.0
-                      0.5 0.5 1.0 1.0
-                      0.7 0.2 1.0 1.0 ; left
-                      0.7 0.2 1.0 1.0
-                      0.7 0.2 1.0 1.0
-                      0.7 0.2 1.0 1.0]
         {:keys [vertices indices colors]} (create-tiles board-size)]
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) s-vertices-buffer)
@@ -102,7 +102,7 @@
 
     (.bindBuffer gl (.-ELEMENT_ARRAY_BUFFER gl) index-buffer)
     (set-matrix-uniforms gl shader-program p-matrix mv-matrix)
-    (.drawElements gl (.-TRIANGLES gl) (* 6 board-size) (.-UNSIGNED_SHORT gl) 0)))
+    (.drawElements gl (.-TRIANGLES gl) (* 6 board-size board-size) (.-UNSIGNED_SHORT gl) 0)))
 
 (defn tick
   [gl shader-program buffers board-size]
@@ -110,7 +110,7 @@
   (draw-scene gl shader-program buffers board-size))
 
 (defn webgl-start []
-  (let [board-size 5
+  (let [board-size 100
         canvas (.getElementById js/document "main-board")
         gl (init-gl canvas)
         shader-program (init-shaders gl)
