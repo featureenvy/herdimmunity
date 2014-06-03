@@ -16,19 +16,57 @@
     (set! (.-viewportHeight gl) (.-height canvas))
     gl))
 
-(defn build-tile-vertices [x-coord y-coord]
-  (let [tile-template [[0 0 0]
-                       [1 0 0]
-                       [1 1 0]
-                       [0 1 0]]
-        translate (fn [[x y z]] [(+ x x-coord) (+ y y-coord) z])]
-    (mapcat translate tile-template)))
+(defn recursive-create-tiles [offset size create-fn]
+  (loop [vertices (atom #js [])
+         walk-pos 0]
+    (if (< walk-pos size)
+      (do
+        (reset! vertices (.concat @vertices (create-fn walk-pos offset size)))
+        (recur vertices (inc walk-pos)))
+      @vertices)))
 
-(defn build-tile-indices [x-coord y-coord]
-  (let [index-template [0 1 2 0 2 3]
-        offset (* 4 y-coord)
-        translate (partial + offset (* x-coord 4))]
-    (map translate index-template)))
+(defn create-vertice-cell [col-num row-num size]
+  (let [tile-template #js [0 0 0
+                       1 0 0
+                       1 1 0
+                           0 1 0]]
+    (aset tile-template 0 col-num)
+    (aset tile-template 3 (inc col-num))
+    (aset tile-template 6 (inc col-num))
+    (aset tile-template 9 col-num)
+
+    (aset tile-template 1 row-num)
+    (aset tile-template 4 row-num)
+    (aset tile-template 7 (inc row-num))
+    (aset tile-template 10 (inc row-num))
+
+    tile-template))
+
+(defn create-vertice-row [curr-pos offset size]
+  (recursive-create-tiles curr-pos size create-vertice-cell))
+
+(defn create-vertices [size]
+  (recursive-create-tiles 0 size create-vertice-row))
+
+(defn create-indices-cell [col-num row-num size]
+  (let [index-template #js [0 1 2 0 2 3]
+        x-offset (* 4 col-num)
+        y-offset (* 4 size row-num)
+        offset (+ x-offset y-offset)]
+    (aset index-template 0 offset)
+    (aset index-template 1 (+ offset 1))
+    (aset index-template 2 (+ offset 2))
+    (aset index-template 3 offset)
+    (aset index-template 4 (+ offset 2))
+    (aset index-template 5 (+ offset 3))
+
+    index-template))
+
+(defn create-indices-row [curr-pos offset size]
+  (recursive-create-tiles curr-pos size create-indices-cell))
+
+(defn create-indices [size]
+  (recursive-create-tiles 0 size create-indices-row))
 
 (defn build-tile-colors [x-coord y-coord]
   (let [color-template [[0.1 0.1 0.1 1.0]
@@ -40,15 +78,35 @@
         translate (fn [[x y z a]] [(+ x x-inc) (+ y y-inc) z a])]
     (mapcat translate color-template)))
 
-(defn create-tiles-row [size y-coord]
-  (let [index-template [0 1 2 0 2 3]
-        vertices (mapcat #(build-tile-vertices % y-coord) (range size))
-        indices (mapcat #(build-tile-indices % (* y-coord size)) (range size))
-        colors (mapcat #(build-tile-colors % y-coord) (range size))]
-    {:vertices vertices :indices indices :colors colors}))
+(defn create-color-cell [col-num row-num size]
+  (let [color-template #js [0.1 0.1 0.1 1.0
+                        0.1 0.1 0.1 1.0
+                        0.1 0.1 0.1 1.0
+                        0.1 0.1 0.1 1.0]
+        x-value (+ 0.1 (* col-num 0.1))
+        y-value (* row-num 0.1)]
+    (aset color-template 0 x-value)
+    (aset color-template 4 x-value)
+    (aset color-template 8 x-value)
+    (aset color-template 12 x-value)
+
+    (aset color-template 1 y-value)
+    (aset color-template 5 y-value)
+    (aset color-template 9 y-value)
+    (aset color-template 13 y-value)
+
+    color-template))
+
+(defn create-colors-row [curr-pos offset size]
+  (recursive-create-tiles curr-pos size create-color-cell))
+
+(defn create-colors [size]
+  (recursive-create-tiles 0 size create-colors-row))
 
 (defn create-tiles [size]
-  (reduce #(merge-with concat %1 (create-tiles-row size %2)) {}  (range size)))
+  {:vertices (create-vertices size)
+   :indices (create-indices size)
+   :colors (create-colors size)})
 
 (defn init-shaders [gl]
   (let [fragment-shader (js/getShader gl "shader-fs")
@@ -71,13 +129,13 @@
         {:keys [vertices indices colors]} (create-tiles board-size)]
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) s-vertices-buffer)
-    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. (clj->js vertices)) (.-STATIC_DRAW gl))
+    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. vertices) (.-STATIC_DRAW gl))
 
     (.bindBuffer gl (.-ELEMENT_ARRAY_BUFFER gl) s-index-buffer)
-    (.bufferData gl (.-ELEMENT_ARRAY_BUFFER gl) (js/Uint16Array. (clj->js indices)) (.-STATIC_DRAW gl))
+    (.bufferData gl (.-ELEMENT_ARRAY_BUFFER gl) (js/Uint16Array. indices) (.-STATIC_DRAW gl))
 
     (.bindBuffer gl (.-ARRAY_BUFFER gl) s-color-buffer)
-    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. (clj->js colors)) (.-STATIC_DRAW gl))
+    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. colors) (.-STATIC_DRAW gl))
 
     {:vertex-buffer s-vertices-buffer
      :index-buffer s-index-buffer
@@ -110,7 +168,7 @@
   (draw-scene gl shader-program buffers board-size))
 
 (defn webgl-start []
-  (let [board-size 100
+  (let [board-size 1000
         canvas (.getElementById js/document "main-board")
         gl (init-gl canvas)
         shader-program (init-shaders gl)
