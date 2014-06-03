@@ -16,92 +16,108 @@
     (set! (.-viewportHeight gl) (.-height canvas))
     gl))
 
-(defn recursive-create-tiles [offset size create-fn]
-  (loop [vertices (atom #js [])
-         walk-pos 0]
+(defn recursive-create-tiles [output offset size create-fn]
+  (loop [walk-pos 0]
     (if (< walk-pos size)
       (do
-        (reset! vertices (.concat @vertices (create-fn walk-pos offset size)))
-        (recur vertices (inc walk-pos)))
-      @vertices)))
+        (create-fn output walk-pos offset size)
+        (recur (inc walk-pos)))
+      output)))
 
-(defn create-vertice-cell [col-num row-num size]
+(defn create-vertice-cell [output col-num row-num size]
   (let [tile-template #js [0 0 0
                        1 0 0
                        1 1 0
-                           0 1 0]]
-    (aset tile-template 0 col-num)
-    (aset tile-template 3 (inc col-num))
-    (aset tile-template 6 (inc col-num))
-    (aset tile-template 9 col-num)
+                           0 1 0]
+        array-start (* (.-length tile-template) (+ col-num (* row-num size)))]
+    (aset output array-start col-num)
+    (aset output (+ array-start 3) (inc col-num))
+    (aset output (+ array-start 6) (inc col-num))
+    (aset output (+ array-start 9) col-num)
 
-    (aset tile-template 1 row-num)
-    (aset tile-template 4 row-num)
-    (aset tile-template 7 (inc row-num))
-    (aset tile-template 10 (inc row-num))
+    (aset output (+ array-start 1) row-num)
+    (aset output (+ array-start 4) row-num)
+    (aset output (+ array-start 7) (inc row-num))
+    (aset output (+ array-start 10) (inc row-num))
 
-    tile-template))
+    (aset output (+ array-start 2) 0)
+    (aset output (+ array-start 5) 0)
+    (aset output (+ array-start 8) 0)
+    (aset output (+ array-start 11) 0)
 
-(defn create-vertice-row [curr-pos offset size]
-  (recursive-create-tiles curr-pos size create-vertice-cell))
+    output))
+
+(defn create-vertice-row [output curr-pos offset size]
+  (recursive-create-tiles output curr-pos size create-vertice-cell))
 
 (defn create-vertices [size]
-  (recursive-create-tiles 0 size create-vertice-row))
+  (let [vertices #js []]
+    (recursive-create-tiles vertices 0 size create-vertice-row)
 
-(defn create-indices-cell [col-num row-num size]
+    vertices))
+
+(defn create-indices-cell [output col-num row-num size]
   (let [index-template #js [0 1 2 0 2 3]
         x-offset (* 4 col-num)
         y-offset (* 4 size row-num)
-        offset (+ x-offset y-offset)]
-    (aset index-template 0 offset)
-    (aset index-template 1 (+ offset 1))
-    (aset index-template 2 (+ offset 2))
-    (aset index-template 3 offset)
-    (aset index-template 4 (+ offset 2))
-    (aset index-template 5 (+ offset 3))
+        offset (+ x-offset y-offset)
+        array-start (* (.-length index-template) (+ col-num (* row-num size)))]
+    (aset output array-start offset)
+    (aset output (+ array-start 1) (+ offset 1))
+    (aset output (+ array-start 2) (+ offset 2))
+    (aset output (+ array-start 3) offset)
+    (aset output (+ array-start 4) (+ offset 2))
+    (aset output (+ array-start 5) (+ offset 3))
 
-    index-template))
+    output))
 
-(defn create-indices-row [curr-pos offset size]
-  (recursive-create-tiles curr-pos size create-indices-cell))
+(defn create-indices-row [output curr-pos offset size]
+  (recursive-create-tiles output curr-pos size create-indices-cell))
 
 (defn create-indices [size]
-  (recursive-create-tiles 0 size create-indices-row))
+  (let [indices #js []]
+    (recursive-create-tiles indices 0 size create-indices-row)
 
-(defn build-tile-colors [x-coord y-coord]
-  (let [color-template [[0.1 0.1 0.1 1.0]
-                        [0.1 0.1 0.1 1.0]
-                        [0.1 0.1 0.1 1.0]
-                        [0.1 0.1 0.1 1.0]]
-        x-inc (* x-coord 0.1)
-        y-inc (* y-coord 0.1)
-        translate (fn [[x y z a]] [(+ x x-inc) (+ y y-inc) z a])]
-    (mapcat translate color-template)))
+    indices))
 
-(defn create-color-cell [col-num row-num size]
+(defn create-color-cell [output col-num row-num size]
   (let [color-template #js [0.1 0.1 0.1 1.0
                         0.1 0.1 0.1 1.0
                         0.1 0.1 0.1 1.0
                         0.1 0.1 0.1 1.0]
         x-value (+ 0.1 (* col-num 0.1))
-        y-value (* row-num 0.1)]
-    (aset color-template 0 x-value)
-    (aset color-template 4 x-value)
-    (aset color-template 8 x-value)
-    (aset color-template 12 x-value)
+        y-value (* row-num 0.1)
+        array-start (* (.-length color-template) (+ col-num (* row-num size)))]
+    (aset output array-start x-value)
+    (aset output (+ array-start 4) x-value)
+    (aset output (+ array-start 8) x-value)
+    (aset output (+ array-start 12) x-value)
 
-    (aset color-template 1 y-value)
-    (aset color-template 5 y-value)
-    (aset color-template 9 y-value)
-    (aset color-template 13 y-value)
+    (aset output (+ array-start 1) y-value)
+    (aset output (+ array-start 5) y-value)
+    (aset output (+ array-start 9) y-value)
+    (aset output (+ array-start 13) y-value)
 
-    color-template))
+    (aset output (+ array-start 2) 0.1)
+    (aset output (+ array-start 6) 0.1)
+    (aset output (+ array-start 10) 0.1)
+    (aset output (+ array-start 14) 0.1)
 
-(defn create-colors-row [curr-pos offset size]
-  (recursive-create-tiles curr-pos size create-color-cell))
+    (aset output (+ array-start 3) 1.0)
+    (aset output (+ array-start 7) 1.0)
+    (aset output (+ array-start 11) 1.0)
+    (aset output (+ array-start 15) 1.0)
+
+    output))
+
+(defn create-colors-row [output curr-pos offset size]
+  (recursive-create-tiles output curr-pos size create-color-cell))
 
 (defn create-colors [size]
-  (recursive-create-tiles 0 size create-colors-row))
+  (let [colors #js []]
+    (recursive-create-tiles colors 0 size create-colors-row)
+
+    colors))
 
 (defn create-tiles [size]
   {:vertices (create-vertices size)
@@ -168,7 +184,7 @@
   (draw-scene gl shader-program buffers board-size))
 
 (defn webgl-start []
-  (let [board-size 1000
+  (let [board-size 100
         canvas (.getElementById js/document "main-board")
         gl (init-gl canvas)
         shader-program (init-shaders gl)
@@ -178,3 +194,4 @@
     (.enable gl (.-DEPTH_TEST gl))
 
     (tick gl shader-program buffers board-size)))
+
