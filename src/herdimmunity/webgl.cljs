@@ -80,7 +80,7 @@
 
     indices))
 
-(defn create-color-cell [output col-num row-num size]
+(defn create-color-cell-old [output col-num row-num size]
   (let [color-template #js [0.1 0.1 0.1 1.0
                         0.1 0.1 0.1 1.0
                         0.1 0.1 0.1 1.0
@@ -110,19 +110,22 @@
 
     output))
 
-(defn create-colors-row [output curr-pos offset size]
-  (recursive-create-tiles output curr-pos size create-color-cell))
+(defn create-color-cell [colors board-value]
+  (.log js/console (first board-value)))
 
-(defn create-colors [size]
+(defn create-colors-row [colors board-row]
+  (doall (map #(create-color-cell colors %) board-row)))
+
+(defn create-colors [size board]
   (let [colors #js []]
-    (recursive-create-tiles colors 0 size create-colors-row)
+    (doall (map #(create-colors-row colors %) board))
 
     colors))
 
-(defn create-tiles [size]
+(defn create-tiles [size board]
   {:vertices (create-vertices size)
    :indices (create-indices size)
-   :colors (create-colors size)})
+   :colors (create-colors size board)})
 
 (defn init-shaders [gl]
   (let [fragment-shader (js/getShader gl "shader-fs")
@@ -138,11 +141,11 @@
 
     shader-program))
 
-(defn init-buffers [gl board-size]
+(defn init-buffers [gl board-size board]
   (let [s-vertices-buffer (.createBuffer gl)
         s-index-buffer (.createBuffer gl)
         s-color-buffer (.createBuffer gl)
-        {:keys [vertices indices colors]} (create-tiles board-size)]
+        {:keys [vertices indices colors]} (create-tiles board-size board)]
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) s-vertices-buffer)
     (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. vertices) (.-STATIC_DRAW gl))
@@ -183,12 +186,12 @@
   (js/requestAnimationFrame (partial tick gl shader-program buffers board-size))
   (draw-scene gl shader-program buffers board-size))
 
-(defn webgl-start []
-  (let [board-size 100
+(defn webgl-start [board]
+  (let [board-size (count board)
         canvas (.getElementById js/document "main-board")
         gl (init-gl canvas)
         shader-program (init-shaders gl)
-        buffers (init-buffers gl board-size)]
+        buffers (init-buffers gl board-size board)]
 
     (.clearColor gl 0.0 0.0 0.0 1.0)
     (.enable gl (.-DEPTH_TEST gl))
