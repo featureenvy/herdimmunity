@@ -111,16 +111,33 @@
     output))
 
 (defn create-color-cell [colors board-value]
-  (.log js/console (first board-value)))
-
-(defn create-colors-row [colors board-row]
-  (doall (map #(create-color-cell colors %) board-row)))
+  (let [empty-template #js [1.0 1.0 1.0 1.0
+                            1.0 1.0 1.0 1.0
+                            1.0 1.0 1.0 1.0
+                            1.0 1.0 1.0 1.0]
+        alive-template #js [0.0 1.0 0.0 1.0
+                            0.0 1.0 0.0 1.0
+                            0.0 1.0 0.0 1.0
+                            0.0 1.0 0.0 1.0]
+        infected-template #js [0.0 0.0 1.0 1.0
+                               0.0 0.0 1.0 1.0
+                               0.0 0.0 1.0 1.0
+                               0.0 0.0 1.0 1.0]
+        dead-template #js [1.0 0.0 0.0 1.0
+                           1.0 0.0 0.0 1.0
+                           1.0 0.0 0.0 1.0
+                           1.0 0.0 0.0 1.0]
+        add-template #(.concat colors %)]
+    (condp = (first board-value)
+      :empty (add-template empty-template)
+      :alive (add-template alive-template)
+      :infected (add-template infected-template)
+      :dead (add-template dead-template))))
 
 (defn create-colors [size board]
-  (let [colors #js []]
-    (doall (map #(create-colors-row colors %) board))
-
-    colors))
+  (let [colors #js []
+        row-reducer #(reduce create-color-cell %1 %2)]
+    (reduce row-reducer colors board)))
 
 (defn create-tiles [size board]
   {:vertices (create-vertices size)
