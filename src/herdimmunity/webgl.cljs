@@ -3,13 +3,6 @@
 (defn attrib-location [gl shader-program name]
   (.getAttribLocation gl shader-program name))
 
-(defn set-matrix-uniform [gl shader-program matrix-name matrix]
-  (.uniformMatrix4fv gl (.getUniformLocation gl shader-program matrix-name) false matrix))
-
-(defn set-matrix-uniforms [gl shader-program p-matrix mv-matrix]
-  (set-matrix-uniform gl shader-program "uPMatrix" p-matrix)
-  (set-matrix-uniform gl shader-program "uMVMatrix" mv-matrix))
-
 (defn init-gl [canvas]
   (let [gl (.getContext canvas "webgl")]
     (set! (.-viewportWidth gl) (.-width canvas))
@@ -26,16 +19,35 @@
     (.useProgram gl shader-program)
 
     (.enableVertexAttribArray gl (attrib-location gl shader-program "aVertexPosition"))
+    (.uniform1i gl (.getUniformLocation gl shader-program "uParticleData") 0)
 
     shader-program))
 
 (defn init-buffers [gl board-size board]
   (let [s-vertices-buffer (.createBuffer gl)
-        vertices #js [1 1 2 2 3 3]]
+        vertices #js [0 0
+                      1 0
+                      0 1
+                      1 1]
+        particle-data-texture (.createTexture gl)
+        particle-data #js [1 1 0 0
+                           2 2 0 0
+                           3 3 0 0
+                           4 4 0 0]]
+
+    (.getExtension gl "OES_texture_float")
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) s-vertices-buffer)
     (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. vertices) (.-STATIC_DRAW gl))
 
+    (.activeTexture gl (.-TEXTURE0 gl))
+    (.bindTexture gl (.-TEXTURE_2D gl) particle-data-texture)
+    (.texImage2D gl (.-TEXTURE_2D gl) 0 (.-RGBA gl) 2 2 0 (.-RGBA gl) (.-FLOAT gl) (js/Float32Array. particle-data))
+    (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MIN_FILTER gl) (.-NEAREST gl))
+    (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MAG_FILTER gl) (.-NEAREST gl))
+    (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_WRAP_S gl) (.-CLAMP_TO_EDGE gl))
+    (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_WRAP_T gl) (.-CLAMP_TO_EDGE gl))
+    
     {:vertex-buffer s-vertices-buffer}))
 
 (defn draw-scene
@@ -45,15 +57,10 @@
     (.viewport gl 0 0 (.-viewportWidth gl) (.-viewportHeight gl))
     (.clear gl (bit-or (.-COLOR_BUFFER_BIT gl) (.-DEPTH_BUFFER_BIT gl)))
     
-    (.ortho js/mat4 p-matrix 0 board-size board-size 0 0.1 100.0)
-    
-    (.translate js/mat4 mv-matrix mv-matrix #js [0 0 -14])
-    
     (.bindBuffer gl (.-ARRAY_BUFFER gl) vertex-buffer)
     (.vertexAttribPointer gl (attrib-location gl shader-program "aVertexPosition") 2 (.-FLOAT gl) false 0 0)
 
-    (set-matrix-uniforms gl shader-program p-matrix mv-matrix)
-    (.drawArrays gl (.-POINTS gl) 0 3)))
+    (.drawArrays gl (.-POINTS gl) 0 4)))
 
 (defn tick
   [gl shader-program buffers board-size]
