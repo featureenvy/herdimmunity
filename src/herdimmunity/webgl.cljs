@@ -16,134 +16,6 @@
     (set! (.-viewportHeight gl) (.-height canvas))
     gl))
 
-(defn recursive-create-tiles [output offset size create-fn]
-  (loop [walk-pos 0]
-    (if (< walk-pos size)
-      (do
-        (create-fn output walk-pos offset size)
-        (recur (inc walk-pos)))
-      output)))
-
-(defn create-vertice-cell [output col-num row-num size]
-  (let [tile-template #js [0 0 0
-                       1 0 0
-                       1 1 0
-                           0 1 0]
-        array-start (* (.-length tile-template) (+ col-num (* row-num size)))]
-    (aset output array-start col-num)
-    (aset output (+ array-start 3) (inc col-num))
-    (aset output (+ array-start 6) (inc col-num))
-    (aset output (+ array-start 9) col-num)
-
-    (aset output (+ array-start 1) row-num)
-    (aset output (+ array-start 4) row-num)
-    (aset output (+ array-start 7) (inc row-num))
-    (aset output (+ array-start 10) (inc row-num))
-
-    (aset output (+ array-start 2) 0)
-    (aset output (+ array-start 5) 0)
-    (aset output (+ array-start 8) 0)
-    (aset output (+ array-start 11) 0)
-
-    output))
-
-(defn create-vertice-row [output curr-pos offset size]
-  (recursive-create-tiles output curr-pos size create-vertice-cell))
-
-(defn create-vertices [size]
-  (let [vertices #js []]
-    (recursive-create-tiles vertices 0 size create-vertice-row)
-
-    vertices))
-
-(defn create-indices-cell [output col-num row-num size]
-  (let [index-template #js [0 1 2 0 2 3]
-        x-offset (* 4 col-num)
-        y-offset (* 4 size row-num)
-        offset (+ x-offset y-offset)
-        array-start (* (.-length index-template) (+ col-num (* row-num size)))]
-    (aset output array-start offset)
-    (aset output (+ array-start 1) (+ offset 1))
-    (aset output (+ array-start 2) (+ offset 2))
-    (aset output (+ array-start 3) offset)
-    (aset output (+ array-start 4) (+ offset 2))
-    (aset output (+ array-start 5) (+ offset 3))
-
-    output))
-
-(defn create-indices-row [output curr-pos offset size]
-  (recursive-create-tiles output curr-pos size create-indices-cell))
-
-(defn create-indices [size]
-  (let [indices #js []]
-    (recursive-create-tiles indices 0 size create-indices-row)
-
-    indices))
-
-(defn create-color-cell-old [output col-num row-num size]
-  (let [color-template #js [0.1 0.1 0.1 1.0
-                        0.1 0.1 0.1 1.0
-                        0.1 0.1 0.1 1.0
-                        0.1 0.1 0.1 1.0]
-        x-value (+ 0.1 (* col-num 0.1))
-        y-value (* row-num 0.1)
-        array-start (* (.-length color-template) (+ col-num (* row-num size)))]
-    (aset output array-start x-value)
-    (aset output (+ array-start 4) x-value)
-    (aset output (+ array-start 8) x-value)
-    (aset output (+ array-start 12) x-value)
-
-    (aset output (+ array-start 1) y-value)
-    (aset output (+ array-start 5) y-value)
-    (aset output (+ array-start 9) y-value)
-    (aset output (+ array-start 13) y-value)
-
-    (aset output (+ array-start 2) 0.1)
-    (aset output (+ array-start 6) 0.1)
-    (aset output (+ array-start 10) 0.1)
-    (aset output (+ array-start 14) 0.1)
-
-    (aset output (+ array-start 3) 1.0)
-    (aset output (+ array-start 7) 1.0)
-    (aset output (+ array-start 11) 1.0)
-    (aset output (+ array-start 15) 1.0)
-
-    output))
-
-(defn create-color-cell [colors board-value]
-  (let [empty-template #js [1.0 1.0 1.0 1.0
-                            1.0 1.0 1.0 1.0
-                            1.0 1.0 1.0 1.0
-                            1.0 1.0 1.0 1.0]
-        alive-template #js [0.0 1.0 0.0 1.0
-                            0.0 1.0 0.0 1.0
-                            0.0 1.0 0.0 1.0
-                            0.0 1.0 0.0 1.0]
-        infected-template #js [0.0 0.0 1.0 1.0
-                               0.0 0.0 1.0 1.0
-                               0.0 0.0 1.0 1.0
-                               0.0 0.0 1.0 1.0]
-        dead-template #js [1.0 0.0 0.0 1.0
-                           1.0 0.0 0.0 1.0
-                           1.0 0.0 0.0 1.0
-                           1.0 0.0 0.0 1.0]
-        add-template #(.concat colors %)]
-    (condp = (first board-value)
-      :empty (add-template empty-template)
-      :alive (add-template alive-template)
-      :infected (add-template infected-template)
-      :dead (add-template dead-template))))
-
-(defn create-colors [size board]
-  (let [colors #js []
-        row-reducer #(reduce create-color-cell %1 %2)]
-    (reduce row-reducer colors board)))
-
-(defn create-tiles [size board]
-  {:vertices (create-vertices size)
-   :indices (create-indices size)
-   :colors (create-colors size board)})
-
 (defn init-shaders [gl]
   (let [fragment-shader (js/getShader gl "shader-fs")
         vertex-shader (js/getShader gl "shader-vs")
@@ -154,31 +26,20 @@
     (.useProgram gl shader-program)
 
     (.enableVertexAttribArray gl (attrib-location gl shader-program "aVertexPosition"))
-    (.enableVertexAttribArray gl (attrib-location gl shader-program "aVertexColor"))
 
     shader-program))
 
 (defn init-buffers [gl board-size board]
   (let [s-vertices-buffer (.createBuffer gl)
-        s-index-buffer (.createBuffer gl)
-        s-color-buffer (.createBuffer gl)
-        {:keys [vertices indices colors]} (create-tiles board-size board)]
+        vertices #js [1 1 2 2 3 3]]
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) s-vertices-buffer)
     (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. vertices) (.-STATIC_DRAW gl))
 
-    (.bindBuffer gl (.-ELEMENT_ARRAY_BUFFER gl) s-index-buffer)
-    (.bufferData gl (.-ELEMENT_ARRAY_BUFFER gl) (js/Uint16Array. indices) (.-STATIC_DRAW gl))
-
-    (.bindBuffer gl (.-ARRAY_BUFFER gl) s-color-buffer)
-    (.bufferData gl (.-ARRAY_BUFFER gl) (js/Float32Array. colors) (.-STATIC_DRAW gl))
-
-    {:vertex-buffer s-vertices-buffer
-     :index-buffer s-index-buffer
-     :color-buffer s-color-buffer}))
+    {:vertex-buffer s-vertices-buffer}))
 
 (defn draw-scene
-  [gl shader-program {:keys [vertex-buffer index-buffer color-buffer]} board-size]
+  [gl shader-program {:keys [vertex-buffer]} board-size]
   (let [mv-matrix (.create js/mat4)
         p-matrix (.create js/mat4)]
     (.viewport gl 0 0 (.-viewportWidth gl) (.-viewportHeight gl))
@@ -189,14 +50,10 @@
     (.translate js/mat4 mv-matrix mv-matrix #js [0 0 -14])
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) vertex-buffer)
-    (.vertexAttribPointer gl (attrib-location gl shader-program "aVertexPosition") 3 (.-FLOAT gl) false 0 0)
+    (.vertexAttribPointer gl (attrib-location gl shader-program "aVertexPosition") 2 (.-FLOAT gl) false 0 0)
 
-    (.bindBuffer gl (.-ARRAY_BUFFER gl) color-buffer)
-    (.vertexAttribPointer gl (attrib-location gl shader-program "aVertexColor") 4 (.-FLOAT gl) false 0 0)
-
-    (.bindBuffer gl (.-ELEMENT_ARRAY_BUFFER gl) index-buffer)
     (set-matrix-uniforms gl shader-program p-matrix mv-matrix)
-    (.drawElements gl (.-TRIANGLES gl) (* 6 board-size board-size) (.-UNSIGNED_SHORT gl) 0)))
+    (.drawArrays gl (.-POINTS gl) 0 3)))
 
 (defn tick
   [gl shader-program buffers board-size]
