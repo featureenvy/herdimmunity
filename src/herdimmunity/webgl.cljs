@@ -6,6 +6,9 @@
 (defn set-p-matrix [gl shader-program p-matrix]
   (.uniformMatrix4fv gl (.getUniformLocation gl shader-program "uPMatrix") false p-matrix))
 
+(defn set-uniform [gl shader-program name value]
+  (.uniform1f gl (.getUniformLocation gl shader-program name) value))
+
 (defn init-gl [canvas]
   (let [gl (.getContext canvas "webgl")]
     (set! (.-viewportWidth gl) (.-width canvas))
@@ -61,6 +64,7 @@
 
     (.ortho js/mat4 p-matrix 0 board-size board-size 0 0.1 100.0)
     (set-p-matrix gl shader-program p-matrix)
+    (set-uniform gl shader-program "uPointSize" board-size)
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) vertex-buffer)
     (.vertexAttribPointer gl (attrib-location gl shader-program "aVertexPosition") 2 (.-FLOAT gl) false 0 0)

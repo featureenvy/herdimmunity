@@ -16,13 +16,14 @@
         attribute vec2 aVertexPosition;
 
         uniform mat4 uPMatrix;
+        uniform float uPointSize;
 
         uniform sampler2D uParticleData;
 
         void main(void) {
           vec4 pos = texture2D(uParticleData, aVertexPosition);
-          gl_Position = uPMatrix * vec4(pos.xy, 0, 1);
-          gl_PointSize = 64.0;
+          gl_Position = uPMatrix * vec4(pos.xy, -1, 1);
+          gl_PointSize = uPointSize;
         }
     </script>
     </head>
