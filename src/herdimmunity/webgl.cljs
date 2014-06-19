@@ -3,6 +3,9 @@
 (defn attrib-location [gl shader-program name]
   (.getAttribLocation gl shader-program name))
 
+(defn set-p-matrix [gl shader-program p-matrix]
+  (.uniformMatrix4fv gl (.getUniformLocation gl shader-program "uPMatrix") false p-matrix))
+
 (defn init-gl [canvas]
   (let [gl (.getContext canvas "webgl")]
     (set! (.-viewportWidth gl) (.-width canvas))
@@ -52,10 +55,12 @@
 
 (defn draw-scene
   [gl shader-program {:keys [vertex-buffer]} board-size]
-  (let [mv-matrix (.create js/mat4)
-        p-matrix (.create js/mat4)]
+  (let [p-matrix (.create js/mat4)]
     (.viewport gl 0 0 (.-viewportWidth gl) (.-viewportHeight gl))
     (.clear gl (bit-or (.-COLOR_BUFFER_BIT gl) (.-DEPTH_BUFFER_BIT gl)))
+
+    (.ortho js/mat4 p-matrix 0 board-size board-size 0 0.1 100.0)
+    (set-p-matrix gl shader-program p-matrix)
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) vertex-buffer)
     (.vertexAttribPointer gl (attrib-location gl shader-program "aVertexPosition") 2 (.-FLOAT gl) false 0 0)
