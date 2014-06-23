@@ -7,8 +7,10 @@
       <script id="shader-fs" type="x-shader/x-fragment">
         precision mediump float;
 
+        varying vec4 vColor;
+
         void main(void) {
-          gl_FragColor = vec4(1, 1, 1, 1);
+          gl_FragColor = vColor;
         }
       </script>
 
@@ -20,10 +22,13 @@
 
         uniform sampler2D uParticleData;
 
+        varying vec4 vColor;
+
         void main(void) {
           vec4 pos = texture2D(uParticleData, aVertexPosition);
           gl_Position = uPMatrix * vec4(pos.xy, -1, 1);
           gl_PointSize = uPointSize;
+          vColor = vec4(pos.b, pos.a, 0, 1);
         }
     </script>
     </head>

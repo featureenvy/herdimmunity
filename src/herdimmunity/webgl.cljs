@@ -29,41 +29,53 @@
 
     shader-program))
 
+(defn generate-cell [avertice board-size y-pos step-size]
+  (loop [index 0]
+      (if (< index board-size)
+        (do
+          (.push avertice (* index step-size))
+          (.push avertice y-pos)
+          (recur (inc index)))
+        avertice)))
+
+(defn generate-vertices [board-size]
+  (let [step-size (/ 1 (dec board-size))
+        vertices #js []]
+    (loop [index 0]
+      (if (< index board-size)
+        (do
+          (generate-cell vertices board-size (* index step-size) step-size)
+          (recur (inc index)))
+        vertices))))
+
+(defn generate-particle-column [data column-size row-index color-index]
+  (let [step-size (/ 1 (dec column-size))]
+    (loop [col 0]
+      (if (< col column-size)
+        (do
+          (.push data col)
+          (.push data row-index)
+          (.push data (* step-size col))
+          (.push data color-index)
+          (recur (inc col)))
+        data))))
+
+(defn generate-particles [board-size]
+  (let [step-size (/ 1 (dec board-size))
+        data #js []]
+    (loop [row 0]
+      (if (< row board-size)
+        (do
+          (generate-particle-column data board-size row (* step-size row))
+          (recur (inc row)))
+        data))))
+
 (defn init-buffers [gl board-size board]
   (let [s-vertices-buffer (.createBuffer gl)
-        vertices #js [0.0 0.0
-                      0.3 0.0
-                      0.6 0.0
-                      0.9 0.0
-                      0.0 0.3
-                      0.3 0.3
-                      0.6 0.3
-                      0.9 0.3
-                      0.0 0.6
-                      0.3 0.6
-                      0.6 0.6
-                      0.9 0.6
-                      0.0 0.9
-                      0.3 0.9
-                      0.6 0.9
-                      0.9 0.9]
+        vertice-step (/ 1 (dec board-size))
+        vertices (generate-vertices board-size)
         particle-data-texture (.createTexture gl)
-        particle-data #js [1 1 0 0
-                           2 2 0 0
-                           3 3 0 0
-                           4 4 0 0
-                           5 5 0 0
-                           6 6 0 0
-                           7 7 0 0
-                           8 8 0 0
-                           9 9 0 0
-                           10 10 0 0
-                           11 11 0 0
-                           12 12 0 0
-                           13 13 0 0
-                           14 14 0 0
-                           15 15 0 0
-                           16 16 0 0]]
+        particle-data (generate-particles board-size)]
 
     (.getExtension gl "OES_texture_float")
     
@@ -72,7 +84,7 @@
 
     (.activeTexture gl (.-TEXTURE0 gl))
     (.bindTexture gl (.-TEXTURE_2D gl) particle-data-texture)
-    (.texImage2D gl (.-TEXTURE_2D gl) 0 (.-RGBA gl) 4 4 0 (.-RGBA gl) (.-FLOAT gl) (js/Float32Array. particle-data))
+    (.texImage2D gl (.-TEXTURE_2D gl) 0 (.-RGBA gl) board-size board-size 0 (.-RGBA gl) (.-FLOAT gl) (js/Float32Array. particle-data))
     (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MIN_FILTER gl) (.-NEAREST gl))
     (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_MAG_FILTER gl) (.-NEAREST gl))
     (.texParameteri gl (.-TEXTURE_2D gl) (.-TEXTURE_WRAP_S gl) (.-CLAMP_TO_EDGE gl))
@@ -88,12 +100,12 @@
 
     (.ortho js/mat4 p-matrix 0 board-size board-size 0 0.1 100.0)
     (set-p-matrix gl shader-program p-matrix)
-    (set-uniform gl shader-program "uPointSize" board-size)
+    (set-uniform gl shader-program "uPointSize" (* (/ board-size 5) 4))
     
     (.bindBuffer gl (.-ARRAY_BUFFER gl) vertex-buffer)
     (.vertexAttribPointer gl (attrib-location gl shader-program "aVertexPosition") 2 (.-FLOAT gl) (.-FALSE gl) 0 0)
 
-    (.drawArrays gl (.-POINTS gl) 0 16)))
+    (.drawArrays gl (.-POINTS gl) 0 (* board-size board-size))))
 
 (defn tick
   [gl shader-program buffers board-size]
